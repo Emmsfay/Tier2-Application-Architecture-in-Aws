@@ -2,19 +2,29 @@
 
 A "Tier 2" architecture typically refers to a mid-level service within a multi-tiered application. This could be an application server layer, a worker node layer, or a specialized data processing layer that interacts with a database (Tier 3) and is accessed by a web/load balancer layer (Tier 1). For an AWS VPC, this means setting up the necessary network isolation, routing, and compute resources.
 
-##Core Components You'll Define in Terraform:
-##VPC (Virtual Private Cloud)##: Your isolated network in AWS.
+**Core Components You'll Define in Terraform:**
+**VPC (Virtual Private Cloud)**: Your isolated network in AWS.
 Subnets:
-Public Subnets: For resources that need direct internet access (e.g., NAT Gateways, bastion hosts, public load balancers).
-Private Subnets: For your actual Tier 2 application instances, ensuring they are not directly accessible from the internet.
-Internet Gateway (IGW): Allows communication between your VPC and the internet.
-NAT Gateway: Enables instances in private subnets to initiate outbound connections to the internet (e.g., for updates, downloading packages) without being publicly accessible.
-Route Tables: Control network traffic flow within your VPC and to/from the internet.
-Security Groups: Act as virtual firewalls to control inbound and outbound traffic for your instances.
-EC2 Instances (or other compute): Your actual Tier 2 application servers.
-Target Group & Application Load Balancer (ALB) (Optional but recommended): For distributing traffic to your Tier 2 instances and providing high availability.
-Terraform Structure:
+- **Public Subnets**: For resources that need direct internet access (e.g., NAT Gateways, bastion hosts, public load balancers.
+
+- **Private Subnets**: For your actual Tier 2 application instances, ensuring they are not directly accessible from the internet.
+  
+- **Internet Gateway (IGW)**: Allows communication between your VPC and the internet.
+  
+- **NAT Gateway**: Enables instances in private subnets to initiate outbound connections to the internet (e.g., for updates, downloading packages) without being publicly accessible.
+ 
+- **Route Tables**: Control network traffic flow within your VPC and to/from the internet.
+  
+- **Security Groups**: Act as virtual firewalls to control inbound and outbound traffic for your instances.
+  
+- **EC2 Instances (or other compute)**: Your actual Tier 2 application servers.
+  
+- **Target Group & Application Load Balancer (ALB) (Optional but recommended)**: For distributing traffic to your Tier 2 instances and providing high availability.
+  
+### Terraform Structure:
 It's good practice to organize your Terraform code into modules for reusability and maintainability.
+
+
 
 <h1>Prerequisite</h1>
 
@@ -25,7 +35,7 @@ Have Terraform installed on your machine (Ubuntu distribution for this tutorial)
 Basic understanding and working knowledge about different services like EC2, VPC, Security groups, Route53, Load Balancer, Auto Scaling groups and Amazon Certificate Manager.
 
 
-##STEP 1: Configuring Keys
+### STEP 1: Configuring Keys
 
 Terraform needs IAM Access and secret access keys in order to connect to AWS and utilize the services. You can either establish a new IAM user or supply a role (we'll be defining an IAM user) and generate the keys for this tutorial. Get the keys by downloading them.
 
@@ -35,7 +45,7 @@ Check the profile for that key when it has been downloaded. The profile will oft
 cd home/.aws/credentials
 ```
 
-##STEP 2: Folder Structure
+### STEP 2: Folder Structure
 
 Make two subdirectories called main and modules in the working directory. The modules will hold the individual modules for every service, whereas the main will hold our primary configuration file.
 
@@ -414,20 +424,20 @@ sudo systemctl enable nginx
 echo "<h1>Hello from Tier 2 Application Server!</h1>" | sudo tee /var/www/html/index.nginx-debian.html
 ```
 
-Deployment Steps:
+### Deployment Steps:
 Initialize Terraform:
 ```
 Bash
 terraform init
 ```
 
-##Review the Plan:
+### Review the Plan:
 ```Bash
 
 terraform plan
 ```
 
-Apply the Configuration:
+### Apply the Configuration:
 ```Bash
 terraform apply
 ```
