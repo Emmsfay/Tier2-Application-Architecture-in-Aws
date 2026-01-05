@@ -426,8 +426,7 @@ echo "<h1>Hello from Tier 2 Application Server!</h1>" | sudo tee /var/www/html/i
 
 ### Deployment Steps:
 Initialize Terraform:
-```
-Bash
+```Bash
 terraform init
 ```
 
@@ -439,6 +438,7 @@ terraform plan
 
 ### Apply the Configuration:
 ```Bash
+
 terraform apply
 ```
 
