@@ -383,3 +383,9 @@ terraform init
 
 terraform plan
 ```
+
+### Apply the Configuration:
+```Bash
+
+terraform apply
+```
