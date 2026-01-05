@@ -73,8 +73,9 @@ terraform {
 provider "aws" {
   region = "us-east-1"
 }
-
-# --- VPC ---
+```
+`vpc.tf (VPC + Internet Gateway)`
+```
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr_block
   enable_dns_hostnames = true
@@ -93,8 +94,10 @@ resource "aws_internet_gateway" "main" {
     Name = "${var.environment}-igw"
   }
 }
+```
 
-# --- Public Subnets (e.g., for NAT Gateways, ALBs) ---
+`Subnets.tf (Public & Private Subnets)`
+```
 resource "aws_subnet" "public" {
   count                   = length(var.availability_zones)
   vpc_id                  = aws_vpc.main.id
@@ -118,8 +121,10 @@ resource "aws_subnet" "private" {
     Name = "${var.environment}-private-subnet-${count.index}"
   }
 }
+```
 
-# --- Elastic IPs for NAT Gateways ---
+`Nat.tf (Elastic IPs for NAT Gateways)`
+```
 resource "aws_eip" "nat" {
   count = length(var.availability_zones)
   vpc   = true # Associate with VPC
@@ -139,7 +144,10 @@ resource "aws_nat_gateway" "main" {
     Name = "${var.environment}-nat-gateway-${count.index}"
   }
 }
+```
 
+`routing.tf (Route Tables & Associations)`
+```
 # --- Route Table for Public Subnets ---
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
@@ -147,10 +155,6 @@ resource "aws_route_table" "public" {
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.main.id
-  }
-
-  tags = {
-    Name = "${var.environment}-public-rt"
   }
 }
 
@@ -170,10 +174,6 @@ resource "aws_route_table" "private" {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.main[count.index].id
   }
-
-  tags = {
-    Name = "${var.environment}-private-rt-${count.index}"
-  }
 }
 
 # --- Associate Private Subnets with Private Route Tables ---
@@ -182,61 +182,95 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private[count.index].id # Each private subnet uses the NAT in its AZ
 }
+```
 
+`Security_groups.tf`
+```
 # --- Security Group for Tier 2 Instances ---
-resource "aws_security_group" "tier2_sg" {
+resource "aws_security_group" "alb_sg" {
   vpc_id = aws_vpc.main.id
-  name   = "${var.environment}-tier2-sg"
-  description = "Security group for Tier 2 application instances"
 
-  # Example: Allow inbound traffic from the ALB security group (Tier 1)
   ingress {
-    from_port       = 8080 # Example application port
-    to_port         = 8080
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id] # Reference ALB SG (defined elsewhere)
-    description     = "Allow HTTP/app traffic from ALB"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Example: Allow SSH from a bastion host (Tier 1 utility)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "bastion_sg" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["YOUR_OFFICE_IP_CIDR"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "tier2_sg" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
   ingress {
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
-    security_groups = [aws_security_group.bastion_sg.id] # Reference Bastion SG (defined elsewhere)
-    description     = "Allow SSH from Bastion Host"
+    security_groups = [aws_security_group.bastion_sg.id]
   }
 
-  # Allow all outbound traffic for updates/dependencies
   egress {
     from_port   = 0
     to_port     = 0
-    protocol    = "-1" # All protocols
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "${var.environment}-tier2-sg"
-  }
 }
+```
 
+`ec2_tier2.tf`
+
+```
 # --- EC2 Instances for Tier 2 ---
 resource "aws_instance" "tier2_app" {
   count         = var.tier2_instance_count
-  ami           = data.aws_ami.ubuntu.id # Example: Ubuntu AMI
+  ami           = data.aws_ami.ubuntu.id
   instance_type = var.tier2_instance_type
-  subnet_id     = element(aws_subnet.private[*].id, count.index % length(aws_subnet.private)) # Distribute across private subnets
+  subnet_id     = element(aws_subnet.private[*].id, count.index)
   vpc_security_group_ids = [aws_security_group.tier2_sg.id]
   key_name      = var.ssh_key_pair
-  user_data     = file("install_app.sh") # Example: Script to install your app
+  user_data     = file("install_app.sh")
 
   tags = {
-    Name        = "${var.environment}-tier2-app-${count.index}"
-    Environment = var.environment
-    Tier        = "2"
+    Name = "${var.environment}-tier2-${count.index}"
   }
 }
+```
 
+
+`alb.tf`
+```
 # --- ALB, Target Group (for Tier 1 to Tier 2 communication) ---
 # This part would typically be defined in a "tier1" or "loadbalancer" module,
 # but included here for context of how it connects to Tier 2.
@@ -247,10 +281,6 @@ resource "aws_lb" "application" {
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id] # SG for the ALB
   subnets            = aws_subnet.public[*].id # ALBs typically in public subnets (even internal ones)
-
-  tags = {
-    Name = "${var.environment}-tier2-alb"
-  }
 }
 
 resource "aws_lb_target_group" "tier2_app" {
@@ -332,86 +362,41 @@ resource "aws_security_group" "bastion_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+```
 
+`data.tf`
 
+```
 # --- Data Source for latest Ubuntu AMI ---
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["099720109477"]
+
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
 }
 
+```
+
+`outputs.tf`
+```
 # --- Outputs (optional, but good practice) ---
 output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = aws_vpc.main.id
+  value = aws_vpc.main.id
 }
 
-output "private_subnet_ids" {
-  description = "List of private subnet IDs for Tier 2 instances"
-  value       = aws_subnet.private[*].id
+output "private_subnets" {
+  value = aws_subnet.private[*].id
 }
 
-output "tier2_security_group_id" {
-  description = "The ID of the security group for Tier 2 instances"
-  value       = aws_security_group.tier2_sg.id
+output "tier2_sg" {
+  value = aws_security_group.tier2_sg.id
 }
+
 ```
 
-
-
-##`Variables.tf`
-
-```
-variable "aws_region" {
-  description = "The AWS region to deploy resources into."
-  type        = string
-  default     = "us-east-1" # Or your desired region
-}
-
-variable "environment" {
-  description = "The environment name (e.g., dev, stage, prod)."
-  type        = string
-  default     = "dev"
-}
-
-variable "vpc_cidr_block" {
-  description = "The CIDR block for the VPC."
-  type        = string
-  default     = "10.0.0.0/16"
-}
-
-variable "availability_zones" {
-  description = "List of Availability Zones to use for subnets."
-  type        = list(string)
-  default     = ["us-east-1a", "us-east-1b"] # Adjust for your region
-}
-
-variable "tier2_instance_type" {
-  description = "The instance type for Tier 2 application servers."
-  type        = string
-  default     = "t3.medium"
-}
-
-variable "tier2_instance_count" {
-  description = "Number of Tier 2 application instances."
-  type        = number
-  default     = 2
-}
-
-variable "ssh_key_pair" {
-  description = "The name of the SSH key pair to use for EC2 instances."
-  type        = string
-  default     = "my-ec2-key" # Replace with your key pair name
-}
-```
 
 `install_app.sh`
 
