@@ -49,6 +49,8 @@ Have Terraform installed on your machine (Ubuntu distribution for this tutorial)
 
 Basic understanding and working knowledge about different services like EC2, VPC, Security groups, Route53, Load Balancer, Auto Scaling groups and Amazon Certificate Manager.
 
+<img width="1024" height="927" alt="Generated Image tier2" src="https://github.com/user-attachments/assets/1462a05f-c4da-4927-901f-706408d11af7" />
 
-<img width="1024" height="1024" alt="Generated Image January 05, 2026 - 1_42PM" src="https://github.com/user-attachments/assets/4c31e879-2c79-4946-b55e-76090c23dd47" />
+
+
 
